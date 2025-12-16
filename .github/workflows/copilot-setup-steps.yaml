@@ -1,0 +1,17 @@
+name: "Copilot Setup Steps"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+
+    steps:
+      - name: Checkout with cached LFS (EXPECTED TO FAIL)
+        uses: nschloe/action-cached-lfs-checkout@v1.2.3

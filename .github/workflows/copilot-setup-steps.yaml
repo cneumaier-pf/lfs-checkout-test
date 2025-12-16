@@ -1,17 +1,102 @@
 name: "Copilot Setup Steps"
+# This workflow sets up the environment for Copilot coding agents.
+# See: https://docs.github.com/en/enterprise-cloud@latest/copilot/how-tos/use-copilot-agents/coding-agent/customize-the-agent-environment
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yaml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yaml
 
 jobs:
+  # The job MUST be called `copilot-setup-steps` or it will not be picked up by Copilot.
   copilot-setup-steps:
     runs-on: ubuntu-latest
 
+    # Copilot will be given its own token for its operations.
     permissions:
       contents: read
       packages: read
       id-token: write
 
     steps:
-      - name: Checkout with cached LFS (EXPECTED TO FAIL)
-        uses: nschloe/action-cached-lfs-checkout@v1.2.3
+      # Keep plain checkout (agents work with this); pull LFS ourselves with caching
+      - name: Checkout repository (agent-friendly)
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+          fetch-depth: 1
+          persist-credentials: true
+          # If your repo uses submodules, uncomment:
+          # submodules: recursive
+
+      # Optional but harmless; ensures git-lfs hooks/config are present locally
+      - name: Init Git LFS
+        shell: bash
+        run: |
+          git lfs install --local
+
+      - name: Create LFS file list
+        shell: bash
+        run: |
+          INCLUDE="*"
+          EXCLUDE=""
+
+          git lfs ls-files --long --include "${INCLUDE}" --exclude "${EXCLUDE}" \
+            | cut -d ' ' -f1 > .lfs-assets-id-unsorted
+
+          if [ -f .gitmodules ]; then
+            git submodule foreach --recursive \
+              "git lfs ls-files --long --include '${INCLUDE}' --exclude '${EXCLUDE}' | cut -d ' ' -f1" \
+              >> .lfs-assets-id-unsorted
+          fi
+
+          sort .lfs-assets-id-unsorted > .lfs-assets-id
+
+      - name: Create Submodule LFS Cache Paths
+        id: cache-paths
+        shell: bash
+        run: |
+          CACHE_PATHS=""
+
+          if [ -f .gitmodules ]; then
+            while read -r line; do
+              CACHE_PATHS+=".git/modules/$line/lfs "
+            done < <(git config --file .gitmodules --get-regexp path | awk '{ print $2 }')
+          fi
+
+          echo "CACHE_PATHS=$CACHE_PATHS" >> "$GITHUB_OUTPUT"
+
+      - name: Restore LFS cache
+        uses: actions/cache@v4
+        id: lfs-cache
+        with:
+          path: |
+            .git/lfs
+            ${{ steps.cache-paths.outputs.CACHE_PATHS }}
+          key: lfs-${{ hashFiles('.lfs-assets-id') }}-v2
+          restore-keys: |
+            lfs-
+
+      - name: Git LFS Pull
+        shell: bash
+        run: |
+          INCLUDE="*"
+          EXCLUDE=""
+
+          git lfs pull --include "${INCLUDE}" --exclude "${EXCLUDE}"
+
+          if [ -f .gitmodules ]; then
+            git submodule foreach --recursive \
+              "git lfs pull --include '${INCLUDE}' --exclude '${EXCLUDE}'"
+          fi
+
+      # Don't leave behind temp files in case build system checks for dirty workspace
+      - name: Cleanup Temp Files
+        shell: bash
+        run: |
+          rm -f .lfs-assets-id-unsorted .lfs-assets-id
+

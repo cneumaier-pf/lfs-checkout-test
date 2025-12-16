@@ -35,7 +35,8 @@ def test_lfs_file_exists():
 def test_lfs_file_content():
     """Test that the LFS file has been properly checked out by verifying it's binary data."""
     with open(LFS_FILE_PATH, 'rb') as f:
-        content = f.read(50)  # Read first 50 bytes
+        # LFS pointer files are typically ~130-150 bytes, so reading 200 bytes is sufficient
+        content = f.read(200)
     
     # LFS pointer files start with "version https://git-lfs.github.com"
     # A properly checked out binary should NOT contain this text

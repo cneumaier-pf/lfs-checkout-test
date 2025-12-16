@@ -11,4 +11,3 @@ def test_hello_world_output():
         check=True
     )
     assert result.stdout.strip() == "hello world"
-    assert result.returncode == 0

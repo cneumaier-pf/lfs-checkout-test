@@ -94,6 +94,24 @@ jobs:
               "git lfs pull --include '${INCLUDE}' --exclude '${EXCLUDE}'"
           fi
 
+
+      - name: Debug git auth config
+        shell: bash
+        run: |
+          set -euxo pipefail
+          echo "== remotes =="
+          git remote -v
+
+          echo "== local auth-related config =="
+          git config --local --show-origin --get-regexp \
+            'http\..*extraheader|credential\.helper|url\..*insteadOf|core\.sshCommand|safe\.directory' || true
+
+          echo "== submodules auth-related config =="
+          if [ -f .gitmodules ]; then
+            git submodule foreach --recursive \
+              'git config --local --show-origin --get-regexp "http\..*extraheader|credential\.helper|url\..*insteadOf|core\.sshCommand|safe\.directory" || true'
+          fi
+          
       # Don't leave behind temp files in case build system checks for dirty workspace
       - name: Cleanup Temp Files
         shell: bash

@@ -1,9 +1,6 @@
 name: "Copilot Setup Steps"
-# This workflow sets up the environment for Copilot coding agents,
-# see also https://docs.github.com/en/enterprise-cloud@latest/copilot/how-tos/use-copilot-agents/coding-agent/customize-the-agent-environment#setting-environment-variables-in-copilots-environment .
+# Copilot coding agents setup workflow (job name must be `copilot-setup-steps`)
 
-# Automatically run the setup steps when they are changed to allow for easy validation, and
-# allow manual testing through the repository's "Actions" tab
 on:
   workflow_dispatch:
   push:
@@ -14,43 +11,44 @@ on:
       - .github/workflows/copilot-setup-steps.yaml
 
 jobs:
-  # The job MUST be called `copilot-setup-steps` or it will not be picked up by Copilot.
   copilot-setup-steps:
     runs-on: ubuntu-latest
 
-    # Copilot will be given its own token for its operations.
+    # Copilot will use its own token later; keep this job read-only.
     permissions:
       contents: read
       packages: read
       id-token: write
 
-
-    # They mimic what we do to set up the env when running tests in the CI.
     steps:
-      - name: Check out repository
+      - name: Checkout + cached LFS (nschloe)
         uses: nschloe/action-cached-lfs-checkout@v1.2.3
         with:
-          persist-credentials: false 
-        # while this works:
-        # uses: actions/checkout@v4
-        # with:
-        #   lfs: true
+          fetch-depth: 1
+          include: "*"
+          exclude: ""
+          # keep default behavior for LFS auth in private repos
+          persist-credentials: true
+          # enableCrossOsArchive: false
+          # submodules: recursive   # uncomment if you actually use submodules
 
-
-      - name: Debug git auth config
+      # Root-cause fix: remove checkout token from the repo snapshot so the agent doesn't push as github-actions[bot]
+      - name: Scrub checkout auth header (required for Copilot agent push)
         shell: bash
         run: |
           set -euxo pipefail
-          echo "== remotes =="
-          git remote -v
+          git config --local --unset-all "http.https://github.com/.extraheader" || true
+          git config --local --unset-all "credential.helper" || true
 
-          echo "== local auth-related config =="
-          git config --local --show-origin --get-regexp \
-            'http\..*extraheader|credential\.helper|url\..*insteadOf|core\.sshCommand|safe\.directory' || true
-
-          echo "== submodules auth-related config =="
           if [ -f .gitmodules ]; then
             git submodule foreach --recursive \
-              'git config --local --show-origin --get-regexp "http\..*extraheader|credential\.helper|url\..*insteadOf|core\.sshCommand|safe\.directory" || true'
+              'git config --local --unset-all "http.https://github.com/.extraheader" || true; git config --local --unset-all "credential.helper" || true'
           fi
 
+      # Optional: prove it's gone (useful while validating)
+      - name: Debug (auth config should be empty now)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git config --local --show-origin --get-regexp \
+            'http\..*extraheader|credential\.helper|url\..*insteadOf|core\.sshCommand|safe\.directory' || true

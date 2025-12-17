@@ -1,6 +1,7 @@
 import unittest
 import sys
 from io import StringIO
+import importlib
 import hello
 
 
@@ -11,14 +12,15 @@ class TestHello(unittest.TestCase):
         """Test that hello.py prints 'hello world'"""
         # Capture stdout
         captured_output = StringIO()
-        sys.stdout = captured_output
+        original_stdout = sys.stdout
         
-        # Import and run hello (which executes the print statement)
-        import importlib
-        importlib.reload(hello)
-        
-        # Restore stdout
-        sys.stdout = sys.__stdout__
+        try:
+            sys.stdout = captured_output
+            # Import and run hello (which executes the print statement)
+            importlib.reload(hello)
+        finally:
+            # Restore stdout
+            sys.stdout = original_stdout
         
         # Verify output
         self.assertEqual(captured_output.getvalue().strip(), "hello world")

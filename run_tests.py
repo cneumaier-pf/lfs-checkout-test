@@ -2,6 +2,32 @@
 """Simple test runner for the repository."""
 import sys
 import traceback
+import glob
+import os
+
+
+def discover_tests():
+    """Discover all test modules and their test functions."""
+    test_modules = []
+    
+    # Find all test_*.py files in the current directory
+    test_files = glob.glob("test_*.py")
+    
+    for test_file in sorted(test_files):
+        module_name = test_file[:-3]  # Remove .py extension
+        try:
+            module = __import__(module_name)
+            # Find all functions that start with "test_"
+            test_functions = [
+                name for name in dir(module)
+                if name.startswith("test_") and callable(getattr(module, name))
+            ]
+            if test_functions:
+                test_modules.append((module_name, sorted(test_functions)))
+        except ImportError:
+            pass  # Skip modules that can't be imported
+    
+    return test_modules
 
 
 def run_tests():
@@ -9,10 +35,11 @@ def run_tests():
     tests_passed = 0
     tests_failed = 0
     
-    test_modules = [
-        ("test_hello", ["test_hello_output"]),
-        ("test_lfs", ["test_lfs_file_exists", "test_lfs_file_size", "test_lfs_file_is_binary"])
-    ]
+    test_modules = discover_tests()
+    
+    if not test_modules:
+        print("No test modules found!")
+        return 1
     
     print("=" * 60)
     print("Running tests...")

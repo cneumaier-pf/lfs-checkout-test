@@ -29,6 +29,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: nschloe/action-cached-lfs-checkout@v1.2.3
+        with:
+          persist-credentials: false 
         # while this works:
         # uses: actions/checkout@v4
         # with:
